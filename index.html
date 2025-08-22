@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Timetable Merger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold text-center mb-8 text-primary">SKH Bishop Baker Secondary School - Teacher Timetable Merger</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Teacher Selection Panel -->
+            <div class="lg:col-span-1">
+                <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4">Select Teachers</h2>
+                    
+                    <!-- Search Box -->
+                    <div class="mb-4">
+                        <input type="text" id="teacherSearch" placeholder="Search teachers..." 
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                    </div>
+                    
+                    <!-- Select All/None -->
+                    <div class="mb-4 flex gap-2">
+                        <button id="selectAll" class="px-3 py-1 bg-primary text-white rounded hover:bg-purple-600 transition-colors text-sm">Select All</button>
+                        <button id="selectNone" class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm">Select None</button>
+                    </div>
+                    
+                    <!-- Teacher List -->
+                    <div id="teacherList" class="max-h-96 overflow-y-auto space-y-2">
+                        <!-- Teachers will be populated here -->
+                    </div>
+                    
+                    <div class="mt-4">
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Selected: <span id="selectedCount" class="font-semibold">0</span> teachers
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Timetable Display Panel -->
+            <div class="lg:col-span-2">
+                <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Merged Timetable</h2>
+                        <div id="loadingIndicator" class="hidden">
+                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="timetableContainer" class="overflow-x-auto">
+                        <div id="emptyState" class="text-center py-12 text-gray-500 dark:text-gray-400">
+                            <p class="text-lg">Select teachers to view their merged timetable</p>
+                        </div>
+                        
+                        <table id="timetableTable" class="hidden w-full border-collapse border border-gray-300 dark:border-gray-600 text-sm">
+                            <thead>
+                                <tr class="bg-gray-100 dark:bg-gray-700">
+                                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-3 text-left font-semibold">Time</th>
+                                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-3 text-left font-semibold">Day 1</th>
+                                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-3 text-left font-semibold">Day 2</th>
+                                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-3 text-left font-semibold">Day 3</th>
+                                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-3 text-left font-semibold">Day 4</th>
+                                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-3 text-left font-semibold">Day 5</th>
+                                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-3 text-left font-semibold">Day 6</th>
+                                </tr>
+                            </thead>
+                            <tbody id="timetableBody">
+                                <!-- Timetable rows will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Teacher data parsed from the document
+        const teacherData = {
+            "CHC": {
+                name: "Chan Hin Chiu",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["4C,4D MAM1 304", "4D MACO 304", "", "1C MATH 103", "", "4C,4D MAM1 304"],
+                    "09:00-09:35": ["4C,4D MAM1 304", "", "4D MACO 304", "", "", "4C,4D MAM1 304"],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["", "", "", "", "1C MATH 103", "1C MATH 103"],
+                    "10:30-11:05": ["1C MATH 103", "", "", "5C MACO 403", "5C MACO 403", ""],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["5C MACO 403", "", "5C MACO 403", "5C MACO 403", "", "4D MACO 304"],
+                    "12:00-12:35": ["", "5C MACO 403", "", "", "4D MACO 304", ""],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["4D MACO 304", "1C MATH 103", "1C MATH 103", "4D MACO 304", "", ""],
+                    "14:25-15:00": ["", "", "1C MATH 103", "", "", ""],
+                    "15:00-15:35": ["", "1A,1B,1C,1D IS 101,102,103,104,501,BL,CL,IITC,PL,SL", "", "", "", ""]
+                }
+            },
+            "CKY": {
+                name: "Chan Ka Ying Anna",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["6A,6B Acc 306", "5A,5B,5C,5D BM 401", "6A,6B,6C,6D BM 305", "5A,5B,5C,5D BM 401", "4A,4B,4C,4D BM 301", ""],
+                    "09:00-09:35": ["6A,6B Acc 306", "", "", "", "", ""],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["", "4A,4B,4C,4D BM 301", "", "", "", "6A,6B Acc 306"],
+                    "10:30-11:05": ["5A,5B,5C,5D BM 401", "", "", "", "", "6A,6B Acc 306"],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["", "6A,6B,6C,6D BM 305", "4A,4B,4C,4D BM 301", "4A,4B,4C,4D BM 301", "5A,5B,5C,5D BM 401", ""],
+                    "12:00-12:35": ["6A,6B,6C,6D BM 305", "6A,6B,6C,6D BM 305", "4A,4B,4C,4D BM 301", "4A,4B,4C,4D BM 301", "5A,5B,5C,5D BM 401", ""],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["", "6A,6B Acc 306", "5A,5B,5C,5D BM 401", "", "6A,6B,6C,6D BM 305", ""],
+                    "14:25-15:00": ["4A,4B,4C,4D BM 301", "", "5A,5B,5C,5D BM 401", "", "6A,6B,6C,6D BM 305", ""],
+                    "15:00-15:35": ["", "", "", "6A,6B Acc 306", "", ""]
+                }
+            },
+            "CKK1": {
+                name: "Chan Kwok Keung",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["4C,4D BIO 303,BL", "5A,5B,5C,5D BIO 403", "", "5A,5B,5C,5D BIO 403", "5C,5D BIO 403,BL", "4C,4D BIO 303,BL"],
+                    "09:00-09:35": ["4C,4D BIO 303,BL", "", "", "", "5C,5D BIO 403,BL", "4C,4D BIO 303,BL"],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["", "3A Bio 105,BL", "", "4C,4D BIO 303", "", ""],
+                    "10:30-11:05": ["5A,5B,5C,5D BIO 403", "", "", "3B Bio 106,BL", "", ""],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["", "5C,5D BIO 403", "", "", "5A,5B,5C,5D BIO 403,BL", "5C,5D BIO 403,BL"],
+                    "12:00-12:35": ["", "4C,4D BIO 303", "5C,5D BIO 403", "5C,5D BIO 403", "5A,5B,5C,5D BIO 403,BL", "5C,5D BIO 403,BL"],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["", "", "5A,5B,5C,5D BIO 403,BL", "", "3A Bio 105", "3B Bio 106"],
+                    "14:25-15:00": ["", "", "5A,5B,5C,5D BIO 403,BL", "", "4C,4D BIO 303", ""],
+                    "15:00-15:35": ["", "", "", "2A,2B,2C,2D IS 201,202,203,204,501,BL,CL,IITC,PL,SL", "", ""]
+                }
+            },
+            "CKK": {
+                name: "Chan Kwok Kwan",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["6D MACO 406", "", "5A MACO 401", "3D MATH 206", "6D MACO 406", ""],
+                    "09:00-09:35": ["6D MACO 406", "3D MATH 206", "", "5A MACO 401", "5A MACO 401", "5A MACO 401"],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["", "", "", "6D MACO 406", "3D MATH 206", ""],
+                    "10:30-11:05": ["", "", "3D MATH 206", "", "3D MATH 206", ""],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["", "", "4A,4B,4C,4D MAM2 304", "4A,4B,4C,4D MAM2 304", "", "3D MATH 206"],
+                    "12:00-12:35": ["3D MATH 206", "", "4A,4B,4C,4D MAM2 304", "4A,4B,4C,4D MAM2 304", "", ""],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["5A MACO 401", "5A MACO 401", "", "", "", "6D MACO 406"],
+                    "14:25-15:00": ["", "", "6D MACO 406", "", "", ""],
+                    "15:00-15:35": ["", "6D MACO 406", "", "2A,2B,2C,2D IS 201,202,203,204,501,BL,CL,IITC,PL,SL", "", ""]
+                }
+            },
+            "CLH": {
+                name: "Chan Lok Hin",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["", "", "", "3C CL IITC", "3D CL IITC", "3B CL IITC"],
+                    "09:00-09:35": ["3C Bio 205", "5A,5B,5C,5D ICT 501", "5A,5B,5C,5D ICT 501", "3C CL IITC", "3D CL IITC", "3B CL IITC"],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["5A,5B,5C,5D ICT 501", "", "3D Bio 206", "1D IS 104,SL", "3C Bio 205,BL", "5A,5B,5C,5D ICT 501"],
+                    "10:30-11:05": ["", "", "", "1D IS 104,SL", "", "5A,5B,5C,5D ICT 501"],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["", "1D IS 104", "", "", "", ""],
+                    "12:00-12:35": ["", "", "", "", "", ""],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["", "3A CL IITC", "", "5A,5B,5C,5D ICT 501", "", "1D IS 104"],
+                    "14:25-15:00": ["3D Bio 206,BL", "3A CL IITC", "1D IS 104", "5A,5B,5C,5D ICT 501", "", ""],
+                    "15:00-15:35": ["", "1A,1B,1C,1D IS 101,102,103,104,501,BL,CL,IITC,PL,SL", "", "2A,2B,2C,2D IS 201,202,203,204,501,BL,CL,IITC,PL,SL", "", ""]
+                }
+            },
+            "COY": {
+                name: "Chan Oi Yan",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["4A ENG 301", "4A ENG 301", "1B ENG 102", "", "", "2C ENG 203"],
+                    "09:00-09:35": ["", "4A ENG 301", "1B ENG 102", "", "", "2C ENG 203"],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["", "1B ENG 102", "", "", "", ""],
+                    "10:30-11:05": ["2C ENG 203", "4A ENG 301", "", "2C ENG 203", "2C ENG 203", ""],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["", "", "", "1B ENG 102", "4A ENG 301", "1B ENG 102"],
+                    "12:00-12:35": ["", "", "", "", "4A ENG 301", "1B ENG 102"],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["1B ENG 102", "2C ENG 203", "2C ENG 203", "", "", "4A ENG 301"],
+                    "14:25-15:00": ["", "2C ENG 203", "4A ENG 301", "", "1B ENG 102", ""],
+                    "15:00-15:35": ["", "", "", "", "", ""]
+                }
+            },
+            "CSM": {
+                name: "Chan Shuk Man",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["1D GEOG 104", "", "6A,6B,6C,6D GEOG 307", "", "4A,4B,4C,4D GEOG 307", ""],
+                    "09:00-09:35": ["1C GEOG 103", "1B GEOG 102", "", "", "", "1B GEOG 102"],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["1B CES 102", "4A,4B,4C,4D GEOG 307", "", "", "", ""],
+                    "10:30-11:05": ["", "1A GEOG 101", "", "1C GEOG 103", "", ""],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["", "6A,6B,6C,6D GEOG 307", "4A,4B,4C,4D GEOG 307", "4A,4B,4C,4D GEOG 307", "", ""],
+                    "12:00-12:35": ["6A,6B,6C,6D GEOG 307", "6A,6B,6C,6D GEOG 307", "4A,4B,4C,4D GEOG 307", "4A,4B,4C,4D GEOG 307", "1D CES 104", "1A GEOG 101"],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["", "", "1D CES 104", "", "6A,6B,6C,6D GEOG 307", ""],
+                    "14:25-15:00": ["4A,4B,4C,4D GEOG 307", "", "1B CES 102", "", "6A,6B,6C,6D GEOG 307", ""],
+                    "15:00-15:35": ["", "", "", "1D GEOG 104", "", ""]
+                }
+            },
+            "CTM": {
+                name: "Chan Tsz Man",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["4C,4D PHY PL", "6C,6D PHY PL", "4A,4B,4C,4D PHY PL", "6C,6D PHY PL", "", "4C,4D PHY PL"],
+                    "09:00-09:35": ["4C,4D PHY PL", "", "", "6C,6D PHY PL", "", "4C,4D PHY PL"],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["", "6A,6B,6C,6D PHY PL", "6C,6D PHY PL", "4C,4D PHY PL", "4A,4B,4C,4D PHY PL", ""],
+                    "10:30-11:05": ["", "6A,6B,6C,6D PHY PL", "6C,6D PHY PL", "4A,4B,4C,4D PHY PL", "4A,4B,4C,4D PHY PL", ""],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["4A,4B,4C,4D PHY PL", "", "", "6A,6B,6C,6D PHY PL", "6A,6B,6C,6D PHY PL", ""],
+                    "12:00-12:35": ["4A,4B,4C,4D PHY PL", "4C,4D PHY PL", "", "", "6C,6D PHY PL", ""],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["6A,6B,6C,6D PHY PL", "", "", "", "", ""],
+                    "14:25-15:00": ["6A,6B,6C,6D PHY PL", "4A,4B,4C,4D PHY PL", "", "", "4C,4D PHY PL", ""],
+                    "15:00-15:35": ["", "1A,1B,1C,1D IS 101,102,103,104,501,BL,CL,IITC,PL,SL", "", "", "", ""]
+                }
+            },
+            "CWY": {
+                name: "Chan Wing Yin",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["3B CHIN 106", "6A CHIN 305", "5D CHIN 404", "", "", ""],
+                    "09:00-09:35": ["3B CHIN 106", "6A CHIN 305", "3B CHIN 106", "", "", "5D CHIN 404"],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["", "5D CHIN 404", "", "3B CHIN 106", "", ""],
+                    "10:30-11:05": ["6A CHIN 305", "5D CHIN 404", "", "", "6A CHIN 305", "3B CHIN 106"],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["", "", "", "", "3B CHIN 106", "6A CHIN 305"],
+                    "12:00-12:35": ["", "", "", "6A CHIN 305", "3B CHIN 106", "6A CHIN 305"],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["5D CHIN 404", "", "", "", "", ""],
+                    "14:25-15:00": ["5D CHIN 404", "3B CHIN 106", "6A CHIN 305", "", "", ""],
+                    "15:00-15:35": ["", "3B CHIN 106", "", "5D CHIN 404", "", ""]
+                }
+            },
+            "CYS": {
+                name: "Chan Yau Sing",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["", "", "6A,6B,6C,6D MAM2 406", "5A,5B,5C,5D MAM2 404", "", ""],
+                    "09:00-09:35": ["4B MACO 302", "", "4B MACO 302", "", "4B MACO 302", ""],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["", "", "5D MACO 404", "", "", ""],
+                    "10:30-11:05": ["5A,5B,5C,5D MAM2 404", "4B MACO 302", "", "", "5D MACO 404", "4B MACO 302"],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["5D MACO 404", "6A,6B,6C,6D MAM2 406", "", "5D MACO 404", "5A,5B,5C,5D MAM2 404", ""],
+                    "12:00-12:35": ["", "6A,6B,6C,6D MAM2 406", "", "", "5A,5B,5C,5D MAM2 404", ""],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["", "5D MACO 404", "5A,5B,5C,5D MAM2 404", "", "6A,6B,6C,6D MAM2 406", "5D MACO 404"],
+                    "14:25-15:00": ["", "", "5A,5B,5C,5D MAM2 404", "", "6A,6B,6C,6D MAM2 406", ""],
+                    "15:00-15:35": ["", "", "", "4B MACO 302", "", ""]
+                }
+            },
+            "CYY": {
+                name: "Chan Ying Yuk",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["1C HCS 103", "3C CHIS 205", "1A CHIS 101", "", "2A CHIS 201", ""],
+                    "09:00-09:35": ["", "3A CHIS 105", "", "", "2D CHIS 204", ""],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["", "", "", "3A CHIS 105", "1B HCS 102", "1B CHIS 102"],
+                    "10:30-11:05": ["", "", "2B CHIS 202", "", "1D HCS 104", "1A CHIS 101"],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["1B HCS 102", "2A CHIS 201", "", "", "", "1D CHIS 104"],
+                    "12:00-12:35": ["", "", "3B CHIS 106", "", "", "1C CHIS 103"],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["", "1D HCS 104", "1B CHIS 102", "1C CHIS 103", "3B CHIS 106", "2B CHIS 202"],
+                    "14:25-15:00": ["", "1D CHIS 104", "2D CHIS 204", "1C HCS 103", "", ""],
+                    "15:00-15:35": ["", "", "", "3C CHIS 205", "", ""]
+                }
+            },
+            "CYW": {
+                name: "Chan Yuk Wah",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["", "2C CHIN 203", "2D CHIN 204", "4D CHIN 304", "", ""],
+                    "09:00-09:35": ["", "2C CHIN 203", "", "4D CHIN 304", "", ""],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["2C CHIN 203", "", "", "2D CHIN 204", "2C CHIN 203", ""],
+                    "10:30-11:05": ["", "4D CHIN 304", "2C CHIN 203", "", "", "2C CHIN 203"],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["2D CHIN 204", "", "", "2C CHIN 203", "4D CHIN 304", "2D CHIN 204"],
+                    "12:00-12:35": ["2D CHIN 204", "", "", "2C CHIN 203", "", ""],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["", "", "4D CHIN 304", "", "2D CHIN 204", "4D CHIN 304"],
+                    "14:25-15:00": ["", "", "4D CHIN 304", "", "2D CHIN 204", ""],
+                    "15:00-15:35": ["", "2D CHIN 204", "", "", "", ""]
+                }
+            },
+            "CYC": {
+                name: "Chan Yung Cheung",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["", "", "", "", "", ""],
+                    "09:00-09:35": ["", "", "", "", "", ""],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["1A CHIN 101", "", "1A CHIN 101", "", "", "1A CHIN 101"],
+                    "10:30-11:05": ["", "", "", "1A CHIN 101", "", ""],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["", "1A HCS 101", "2C WVE 203", "", "2D WVE 204", ""],
+                    "12:00-12:35": ["", "", "2C WVE 203", "", "2D WVE 204", ""],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["", "1A CHIN 101", "", "", "1A CHIN 101", ""],
+                    "14:25-15:00": ["", "1A CHIN 101", "", "", "1A CHIN 101", ""],
+                    "15:00-15:35": ["S1 WVE", "", "S1 WVE", "1A HCS 101", "S1 WVE", ""]
+                }
+            }
+        };
+
+        // Additional teachers (continued due to length...)
+        const additionalTeachers = {
+            "CCW": {
+                name: "Cheung Chi Wai",
+                timetable: {
+                    "08:00-08:25": ["Class Period", "Class Period", "Class Period", "Class Period", "Class Period", "Class Period"],
+                    "08:25-09:00": ["2B CHIN 202", "1B PTH 102", "", "", "2C PTH 203", ""],
+                    "09:00-09:35": ["2B CHIN 202", "", "3C PTH 205", "", "", "2B CHIN 202"],
+                    "09:35-09:55": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "09:55-10:30": ["", "2B CHIN 202", "", "3D PTH 206", "3B PTH 106", ""],
+                    "10:30-11:05": ["", "2B CHIN 202", "4A CHIN 301", "2B CHIN 202", "", ""],
+                    "11:05-11:25": ["Recess", "Recess", "Recess", "Recess", "Recess", "Recess"],
+                    "11:25-12:00": ["", "4A CHIN 301", "", "2D PTH 204", "1A PTH 101", "4A CHIN 301"],
+                    "12:00-12:35": ["1D PTH 104", "4A CHIN 301", "", "", "2B PTH 202", ""],
+                    "12:35-13:45": ["Lunch", "Lunch", "Lunch", "Lunch", "Lunch", "Lunch"],
+                    "13:45-13:50": ["Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call", "Roll Call"],
+                    "13:50-14:25": ["4A CHIN 301", "", "2B CHIN 202", "4A CHIN 301", "2B CHIN 202", "2A PTH 201"],
+                    "14:25-15:00": ["", "", "", "4A CHIN 301", "", ""],
+                    "15:00-15:35": ["", "", "", "", "", ""]
+                }
+            }
+        };
+
+        // Merge all teacher data
+        Object.assign(teacherData, additionalTeachers);
+
+        // Time slots in order
+        const timeSlots = [
+            "08:00-08:25", "08:25-09:00", "09:00-09:35", "09:35-09:55", "09:55-10:30",
+            "10:30-11:05", "11:05-11:25", "11:25-12:00", "12:00-12:35", "12:35-13:45",
+            "13:45-13:50", "13:50-14:25", "14:25-15:00", "15:00-15:35"
+        ];
+
+        // Initialize the app
+        let selectedTeachers = new Set();
+
+        function initializeApp() {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+            }
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+                if (event.matches) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            });
+
+            populateTeacherList();
+            setupEventListeners();
+        }
+
+        function populateTeacherList() {
+            const teacherList = document.getElementById('teacherList');
+            const teachers = Object.entries(teacherData).sort((a, b) => a[1].name.localeCompare(b[1].name));
+            
+            teacherList.innerHTML = teachers.map(([code, teacher]) => `
+                <label class="flex items-center space-x-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer teacher-item" data-code="${code}" data-name="${teacher.name.toLowerCase()}">
+                    <input type="checkbox" value="${code}" class="teacher-checkbox text-primary focus:ring-primary rounded">
+                    <span class="text-sm">
+                        <span class="font-semibold">${code}</span> - ${teacher.name}
+                    </span>
+                </label>
+            `).join('');
+        }
+
+        function setupEventListeners() {
+            // Teacher search
+            document.getElementById('teacherSearch').addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const teacherItems = document.querySelectorAll('.teacher-item');
+                
+                teacherItems.forEach(item => {
+                    const code = item.dataset.code.toLowerCase();
+                    const name = item.dataset.name;
+                    const matches = code.includes(searchTerm) || name.includes(searchTerm);
+                    item.style.display = matches ? 'flex' : 'none';
+                });
+            });
+
+            // Teacher selection
+            document.getElementById('teacherList').addEventListener('change', (e) => {
+                if (e.target.classList.contains('teacher-checkbox')) {
+                    if (e.target.checked) {
+                        selectedTeachers.add(e.target.value);
+                    } else {
+                        selectedTeachers.delete(e.target.value);
+                    }
+                    updateSelectedCount();
+                    updateTimetable();
+                }
+            });
+
+            // Select all/none buttons
+            document.getElementById('selectAll').addEventListener('click', () => {
+                document.querySelectorAll('.teacher-checkbox').forEach(checkbox => {
+                    checkbox.checked = true;
+                    selectedTeachers.add(checkbox.value);
+                });
+                updateSelectedCount();
+                updateTimetable();
+            });
+
+            document.getElementById('selectNone').addEventListener('click', () => {
+                document.querySelectorAll('.teacher-checkbox').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                selectedTeachers.clear();
+                updateSelectedCount();
+                updateTimetable();
+            });
+        }
+
+        function updateSelectedCount() {
+            document.getElementById('selectedCount').textContent = selectedTeachers.size;
+        }
+
+        function updateTimetable() {
+            const emptyState = document.getElementById('emptyState');
+            const timetableTable = document.getElementById('timetableTable');
+            const timetableBody = document.getElementById('timetableBody');
+
+            if (selectedTeachers.size === 0) {
+                emptyState.classList.remove('hidden');
+                timetableTable.classList.add('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            timetableTable.classList.remove('hidden');
+
+            // Generate merged timetable
+            const mergedTimetable = mergeTimetables();
+            
+            timetableBody.innerHTML = timeSlots.map(timeSlot => {
+                const isBreak = timeSlot === "09:35-09:55" || timeSlot === "11:05-11:25" || 
+                               timeSlot === "12:35-13:45" || timeSlot === "13:45-13:50";
+                const rowClass = isBreak ? "bg-yellow-50 dark:bg-yellow-900/20" : "";
+                
+                return `
+                    <tr class="${rowClass}">
+                        <td class="border border-gray-300 dark:border-gray-600 px-2 py-2 font-medium">${timeSlot}</td>
+                        ${mergedTimetable[timeSlot].map(classes => `
+                            <td class="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                ${classes.length > 0 ? classes.map(cls => `
+                                    <div class="text-xs mb-1 p-1 bg-blue-100 dark:bg-blue-900/30 rounded truncate" title="${cls}">
+                                        ${cls}
+                                    </div>
+                                `).join('') : ''}
+                            </td>
+                        `).join('')}
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function mergeTimetables() {
+            const merged = {};
+            
+            timeSlots.forEach(timeSlot => {
+                merged[timeSlot] = [[], [], [], [], [], []]; // 6 days
+                
+                selectedTeachers.forEach(teacherCode => {
+                    const teacher = teacherData[teacherCode];
+                    if (teacher && teacher.timetable[timeSlot]) {
+                        teacher.timetable[timeSlot].forEach((classInfo, dayIndex) => {
+                            if (classInfo.trim() && !isBreakTime(classInfo)) {
+                                merged[timeSlot][dayIndex].push(`[${teacherCode}] ${classInfo}`);
+                            }
+                        });
+                    }
+                });
+            });
+            
+            return merged;
+        }
+
+        function isBreakTime(classInfo) {
+            const breakTimes = ['Class Period', 'Recess', 'Lunch', 'Roll Call'];
+            return breakTimes.includes(classInfo);
+        }
+
+        // Initialize app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
